@@ -156,15 +156,25 @@ def main():
         "HardDrive", "Battery", "AAA", "Charger",
     ]
 
-    # Mass-based filter as a fallback / supplement: keep small, light objects
-    # roughly in the range of a phone or phone component (very rough heuristic --
-    # tune after checking real values in acronym_category_stats.csv).
-    MASS_MAX_KG = 0.5  # 500g upper bound, generous for a phone-scale object
+    # NOTE: object/mass in ShapeNetSem is frequently a placeholder/default value,
+    # NOT a reliable measured mass -- confirmed by Couch/TV/Desk passing a naive
+    # "mass <= 500g" filter in an earlier run. Do NOT use mass as a standalone
+    # filter. Use category whitelist as the primary filter, and cross-check
+    # candidates against object/scale (which is more trustworthy -- it's the
+    # actual geometric scale factor applied to the mesh) as a secondary sanity
+    # check, not a fallback that can pull in unrelated categories.
+    shortlist = df[df["category"].isin(PHONE_ADJACENT_CATEGORIES)].copy()
 
-    shortlist = df[
-        df["category"].isin(PHONE_ADJACENT_CATEGORIES)
-        | (df["mass"] <= MASS_MAX_KG)
-    ].copy()
+    # Flag (don't silently drop) any shortlisted object whose scale looks
+    # implausible for a handheld/phone-component-sized item, so you can
+    # manually review rather than trust it blindly.
+    SCALE_MIN, SCALE_MAX = 0.01, 0.5  # tune after inspecting real values
+    shortlist["scale_suspect"] = ~shortlist["scale"].between(SCALE_MIN, SCALE_MAX)
+    n_suspect = shortlist["scale_suspect"].sum()
+    if n_suspect:
+        print(f"\n[WARN] {n_suspect} shortlisted objects have scale outside "
+              f"[{SCALE_MIN}, {SCALE_MAX}] -- check these manually, "
+              f"see 'scale_suspect' column in acronym_shortlist.csv")
 
     shortlist.to_csv("acronym_shortlist.csv", index=False)
     print(f"Wrote acronym_shortlist.csv ({len(shortlist)} rows, "
