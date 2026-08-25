@@ -1,0 +1,105 @@
+### Datasets ###
+dataset/
+datasets/
+data/
+*.h5
+*.hdf5
+
+# ACRONYM / ShapeNetSem specific
+grasps/
+models-OBJ/
+models-textures/
+models-COLLADA/
+models-binvox*/
+*.obj
+*.mtl
+*.dae
+*.binvox
+
+# Your own phone meshes (keep these out unless you explicitly want them versioned)
+phone_meshes/
+*.ply
+*.stl
+
+### Generated CSVs / indices (regeneratable from scripts) ###
+acronym_full_index.csv
+acronym_category_stats.csv
+acronym_shortlist.csv
+*_index.csv
+*_shortlist.csv
+
+### Model weights / checkpoints ###
+*.pth
+*.pt
+*.ckpt
+*.h5.weights
+checkpoints/
+weights/
+runs/
+logs/
+wandb/
+lightning_logs/
+
+### PyBullet / simulation artifacts ###
+*.bullet
+*.urdf.bak
+
+### Python ###
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+conda-env/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+### IDE / OS ###
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+### Env / secrets ###
+.env
+*.env
+*api_key*
+*.pem
+
+### Large renders / visualizations (regeneratable) ###
+renders/
+*.png
+*.jpg
+*.jpeg
+!docs/**/*.png
+!docs/**/*.jpg
+
+### Misc ###
+*.log
+*.tmp
+.cache/
