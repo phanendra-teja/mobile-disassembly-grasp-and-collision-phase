@@ -16,6 +16,23 @@ models-binvox*/
 *.dae
 *.binvox
 
+# Actual folders you now have on disk from this project's data setup --
+# add/adjust names here if yours differ slightly.
+shapenetsem_download/          # raw ShapeNetSem.zip (12.2GB)
+shapenetsem_extracted/         # selectively extracted OBJ+MTL+metadata
+acronym_mesh_root/             # restructured meshes/<Category>/<model_id>.obj layout
+acronym/                       # cloned NVlabs/acronym repo -- clone via README instead of committing
+acronym/data/                  # any example data bundled with the cloned repo
+dataset/grasps/                # the 8,836 ACRONYM .h5 grasp files
+
+# metadata files extracted alongside meshes -- keep the SCRIPTS that
+# produce these, not the files themselves (reproducible from ShapeNetSem)
+metadata.csv
+categories.synset.csv
+taxonomy.txt
+densities.csv
+materials.csv
+
 # Your own phone meshes (keep these out unless you explicitly want them versioned)
 phone_meshes/
 *.ply
@@ -27,6 +44,9 @@ acronym_category_stats.csv
 acronym_shortlist.csv
 *_index.csv
 *_shortlist.csv
+
+# Zip archives -- never commit these regardless of where they end up
+*.zip
 
 ### Model weights / checkpoints ###
 *.pth
