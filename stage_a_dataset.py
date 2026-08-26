@@ -26,12 +26,13 @@ import h5py
 import numpy as np
 import pandas as pd
 import torch
+import trimesh
 from torch.utils.data import Dataset
 
 # acronym_tools must be imported after `pip install -e .` in the cloned
 # NVlabs/acronym repo (see restructure_for_acronym.py / earlier setup).
 try:
-    from acronym_tools import load_mesh
+    from acronym_tools import load_mesh, load_grasps
 except ImportError:
     raise ImportError(
         "acronym_tools not found. Run `pip install -e .` from inside the "
@@ -99,7 +100,18 @@ class AcronymGraspDataset(Dataset):
     def _sample_point_cloud(self, mesh):
         """Uniform surface sampling -- matches what the real segmentation
         pipeline's PointNet++ input expects (surface points, not just
-        vertices, so density is independent of mesh tessellation)."""
+        vertices, so density is independent of mesh tessellation).
+
+        trimesh.load() can return a Scene instead of a single Trimesh when
+        the .obj has multiple material groups (common in ShapeNetSem) --
+        Scene has no .sample(), so merge into one mesh first when needed.
+        """
+        if isinstance(mesh, trimesh.Scene):
+            if len(mesh.geometry) == 0:
+                raise ValueError("Loaded Scene has no geometry to sample from.")
+            mesh = trimesh.util.concatenate(
+                [g for g in mesh.geometry.values()]
+            )
         points, _ = mesh.sample(self.num_points, return_index=True)
         return points.astype(np.float32)
 
@@ -107,9 +119,16 @@ class AcronymGraspDataset(Dataset):
         row = self.shortlist.iloc[idx]
         h5_path = os.path.join(self.grasp_dir, row["filename"])
 
+        # load_grasps/load_mesh from acronym_tools take a filename string
+        # and open the .h5 internally -- do NOT pre-open the file ourselves
+        # and pass the h5py.File object (that was the earlier bug: their
+        # functions call filename.endswith(...), which only works on a str).
+        transforms, success = load_grasps(h5_path)
+
+        # load_grasps doesn't expose the motion-during-closing/shaking
+        # fields (only transforms + success), so we still read those
+        # ourselves directly for the quality score.
         with h5py.File(h5_path, "r") as f:
-            transforms = f["grasps/transforms"][:]
-            success = f["grasps/qualities/flex/object_in_gripper"][:]
             closing_lin = f["grasps/qualities/flex/object_motion_during_closing_linear"][:]
             closing_ang = f["grasps/qualities/flex/object_motion_during_closing_angular"][:]
             shaking_lin = f["grasps/qualities/flex/object_motion_during_shaking_linear"][:]
@@ -117,10 +136,9 @@ class AcronymGraspDataset(Dataset):
 
         quality = compute_quality(success, closing_lin, closing_ang, shaking_lin, shaking_ang)
 
-        # Load mesh via acronym_tools (handles object/file path + scale
-        # correctly, as validated against the official visualizer).
-        with h5py.File(h5_path, "r") as f:
-            mesh = load_mesh(f, mesh_root_dir=self.mesh_root)
+        # load_mesh handles object/file path resolution + scale internally
+        # (validated earlier against the official acronym_visualize_grasps.py).
+        mesh = load_mesh(h5_path, mesh_root_dir=self.mesh_root)
 
         points = self._sample_point_cloud(mesh)
 
