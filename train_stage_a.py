@@ -14,7 +14,7 @@ from stage_a_dataset import AcronymGraspDataset
 from stage_a_model import GraspRankingNet, grasp_ranking_loss
 
 # ---- CONFIG ----
-SHORTLIST_CSV = "acronym_shortlist.csv"
+SHORTLIST_CSV = "acronym_shortlist_clean.csv"
 MESH_ROOT = "acronym_mesh_root"
 GRASP_DIR = "dataset/grasps"
 

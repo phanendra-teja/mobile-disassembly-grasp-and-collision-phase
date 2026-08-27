@@ -48,7 +48,10 @@ def main():
             if isinstance(mesh, trimesh.Scene):
                 if len(mesh.geometry) == 0:
                     raise ValueError("Scene has no geometry")
-                mesh = trimesh.util.concatenate([g for g in mesh.geometry.values()])
+                # Use .dump(concatenate=True), not .geometry.values() directly --
+                # see evaluate_stage_a.py / stage_a_dataset.py for why the naive
+                # approach silently discards the Scene's scale transform.
+                mesh = mesh.dump(concatenate=True)
             mesh.sample(64)  # small sample count, just a functional check
 
             good_model_ids.append(row["model_id"])

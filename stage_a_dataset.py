@@ -80,6 +80,32 @@ class AcronymGraspDataset(Dataset):
         # time, not silently mid-training on a random batch.
         self._validate_files()
 
+        # Precompute + cache point clouds for every unique mesh ONCE here,
+        # instead of re-loading and re-parsing the raw .obj text on every
+        # __getitem__ call every epoch. Repeated re-parsing of the same
+        # files thousands of times over many epochs was almost certainly
+        # what caused the MemoryError during training (validate_meshes.py
+        # loaded each mesh only once and found zero bad files, ruling out
+        # a single corrupt mesh as the cause).
+        self._point_cloud_cache = {}
+        self._precompute_point_clouds()
+
+    def _precompute_point_clouds(self):
+        print(f"Precomputing point clouds for {len(self.shortlist)} unique meshes "
+              f"(one-time cost, cached in memory for the rest of training)...")
+        for i, row in self.shortlist.iterrows():
+            h5_path = os.path.join(self.grasp_dir, row["filename"])
+            model_id = row["model_id"]
+            try:
+                mesh = load_mesh(h5_path, mesh_root_dir=self.mesh_root)
+                points = self._sample_point_cloud(mesh)
+                self._point_cloud_cache[model_id] = points
+            except Exception as e:
+                print(f"[WARN] failed to precompute point cloud for {model_id}: {e}")
+            if (i + 1) % 100 == 0:
+                print(f"  cached {i + 1}/{len(self.shortlist)}")
+        print(f"Done. Cached {len(self._point_cloud_cache)} point clouds.")
+
     def _validate_files(self):
         missing = []
         for _, row in self.shortlist.iterrows():
@@ -109,9 +135,13 @@ class AcronymGraspDataset(Dataset):
         if isinstance(mesh, trimesh.Scene):
             if len(mesh.geometry) == 0:
                 raise ValueError("Loaded Scene has no geometry to sample from.")
-            mesh = trimesh.util.concatenate(
-                [g for g in mesh.geometry.values()]
-            )
+            # See evaluate_stage_a.py for why this must be .dump(concatenate=True)
+            # and NOT trimesh.util.concatenate([g for g in mesh.geometry.values()]):
+            # the latter bypasses the Scene's graph transforms (including the
+            # scale applied by load_mesh), producing coordinates off by ~1000x
+            # from the correctly-scaled grasp poses. This was silently corrupting
+            # every point cloud sampled from a multi-material mesh during training.
+            mesh = mesh.dump(concatenate=True)
         points, _ = mesh.sample(self.num_points, return_index=True)
         return points.astype(np.float32)
 
@@ -136,11 +166,16 @@ class AcronymGraspDataset(Dataset):
 
         quality = compute_quality(success, closing_lin, closing_ang, shaking_lin, shaking_ang)
 
-        # load_mesh handles object/file path resolution + scale internally
-        # (validated earlier against the official acronym_visualize_grasps.py).
-        mesh = load_mesh(h5_path, mesh_root_dir=self.mesh_root)
-
-        points = self._sample_point_cloud(mesh)
+        # Use the precomputed/cached point cloud instead of re-loading and
+        # re-parsing the mesh from disk on every call.
+        model_id = row["model_id"]
+        if model_id not in self._point_cloud_cache:
+            raise RuntimeError(
+                f"No cached point cloud for {model_id} -- it likely failed "
+                f"during precomputation (check the [WARN] messages printed "
+                f"at dataset construction)."
+            )
+        points = self._point_cloud_cache[model_id]
 
         # Sample a fixed number of grasps per object, biased toward
         # including high-quality ones so rare good grasps aren't
